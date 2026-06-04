@@ -70,8 +70,8 @@ const scaledX = Math.round(finalX * scaleRatio);
 const scaledY = Math.round(finalY * scaleRatio);
 const scaledW = Math.round(finalW * scaleRatio);
 const scaledH = Math.round(finalH * scaleRatio);
-const outputW = 960;
-const outputH = 540;
+const outputW = 480;
+const outputH = 270;
 
 await new Promise((resolve, reject) => {
   ffmpeg()
