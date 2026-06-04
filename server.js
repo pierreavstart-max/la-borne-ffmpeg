@@ -65,23 +65,14 @@ app.post('/assemble', async (req, res) => {
     console.log('Final coords:', { finalX, finalY, finalW, finalH });
 
     // Assemble avec ffmpeg en 960x540 (moitié de 1920x1080)
-const scaleRatio = 0.5;
-const scaledX = Math.round(finalX * scaleRatio);
-const scaledY = Math.round(finalY * scaleRatio);
-const scaledW = Math.round(finalW * scaleRatio);
-const scaledH = Math.round(finalH * scaleRatio);
-const outputW = 480;
-const outputH = 270;
-
 await new Promise((resolve, reject) => {
   ffmpeg()
     .input(finalBg)
     .inputOptions(['-loop 1'])
     .input(tmpVideoIn)
     .complexFilter([
-      `[0:v]scale=${outputW}:${outputH}[bg]`,
-      `[1:v]scale=${scaledW}:${scaledH}[scaled]`,
-      `[bg][scaled]overlay=${scaledX}:${scaledY}[out]`,
+      `[1:v]scale=${finalW}:${finalH}[scaled]`,
+      `[0:v][scaled]overlay=${finalX}:${finalY}[out]`,
     ])
     .outputOptions([
       '-map [out]',
