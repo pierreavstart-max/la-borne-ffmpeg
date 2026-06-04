@@ -84,6 +84,7 @@ await new Promise((resolve, reject) => {
       '-shortest',
     ])
     .output(tmpOut)
+    .on('stderr', line => console.log('ffmpeg:', line))
     .on('end', () => { console.log('ffmpeg done'); resolve(); })
     .on('error', (err) => { console.log('ffmpeg error:', err.message); reject(err); })
     .run();
