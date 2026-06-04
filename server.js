@@ -54,11 +54,13 @@ app.post('/assemble', async (req, res) => {
   });
   finalBg = tmpBgRot;
 
-  // Après rotation 90° sens horaire du fond (1080x1920 -> 1920x1080) :
-  // La zone vidéo définie en portrait (x, y, w, h) devient :
-  // newX = y, newY = 1080 - x - w, newW = h, newH = w
-  finalX = videoY;
-  finalY = 1080 - videoX - videoW;
+  // Rotation 90° sens horaire : canvas 1080x1920 -> 1920x1080
+  // newX = H - oldY - oldH = 1920 - videoY - videoH
+  // newY = oldX = videoX
+  // newW = oldH = videoH  
+  // newH = oldW = videoW
+  finalX = 1920 - videoY - videoH;
+  finalY = videoX;
   finalW = videoH;
   finalH = videoW;
 }
@@ -84,9 +86,9 @@ app.post('/assemble', async (req, res) => {
         .inputOptions(['-loop 1'])
         .input(tmpVideoIn)
         .complexFilter([
-          `[1:v]scale=${finalW}:${finalH}[scaled]`,
-          `[0:v][scaled]overlay=${finalX}:${finalY}[out]`,
-        ])
+  `[1:v]scale=${finalW}:${finalH}:force_original_aspect_ratio=decrease,pad=${finalW}:${finalH}:(ow-iw)/2:(oh-ih)/2[scaled]`,
+  `[0:v][scaled]overlay=${finalX}:${finalY}[out]`,
+])
         .outputOptions([
           '-map [out]',
           '-c:v libx264',
