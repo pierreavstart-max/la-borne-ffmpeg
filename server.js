@@ -86,7 +86,7 @@ app.post('/assemble', async (req, res) => {
         .inputOptions(['-loop 1'])
         .input(tmpVideoIn)
         .complexFilter([
-  `[1:v]scale=${finalW}:${finalH}:force_original_aspect_ratio=decrease,pad=${finalW}:${finalH}:(ow-iw)/2:(oh-ih)/2[scaled]`,
+  `[1:v]transpose=1,scale=${finalW}:${finalH}:force_original_aspect_ratio=decrease,pad=${finalW}:${finalH}:(ow-iw)/2:(oh-ih)/2[scaled]`,
   `[0:v][scaled]overlay=${finalX}:${finalY}[out]`,
 ])
         .outputOptions([
