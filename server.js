@@ -43,22 +43,25 @@ app.post('/assemble', async (req, res) => {
     let finalH = videoH;
 
     if (orientation === 'portrait') {
-      await new Promise((resolve, reject) => {
-        ffmpeg()
-          .input(tmpBg)
-          .videoFilters('transpose=1')
-          .output(tmpBgRot)
-          .on('end', resolve)
-          .on('error', (err) => { console.log('rotate error:', err.message); reject(err); })
-          .run();
-      });
-      finalBg = tmpBgRot;
+  await new Promise((resolve, reject) => {
+    ffmpeg()
+      .input(tmpBg)
+      .videoFilters('transpose=1')
+      .output(tmpBgRot)
+      .on('end', resolve)
+      .on('error', (err) => { console.log('rotate error:', err.message); reject(err); })
+      .run();
+  });
+  finalBg = tmpBgRot;
 
-      finalX = 1920 - videoY - videoH;
-      finalY = videoX;
-      finalW = videoH;
-      finalH = videoW;
-    }
+  // Après rotation 90° sens horaire du fond (1080x1920 -> 1920x1080) :
+  // La zone vidéo définie en portrait (x, y, w, h) devient :
+  // newX = y, newY = 1080 - x - w, newW = h, newH = w
+  finalX = videoY;
+  finalY = 1080 - videoX - videoW;
+  finalW = videoH;
+  finalH = videoW;
+}
 
     console.log('Final coords:', { finalX, finalY, finalW, finalH });
 
