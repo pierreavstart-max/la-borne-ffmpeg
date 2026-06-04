@@ -90,14 +90,16 @@ app.post('/assemble', async (req, res) => {
   `[0:v][scaled]overlay=${finalX}:${finalY}[out]`,
 ])
         .outputOptions([
-          '-map [out]',
-          '-c:v libx264',
-          '-preset ultrafast',
-          '-crf 28',
-          '-pix_fmt yuv420p',
-          '-r 25',
-          '-t', String(Math.ceil(videoDuration)),
-        ])
+  '-map [out]',
+  '-map 1:a?',
+  '-c:v libx264',
+  '-c:a aac',
+  '-preset ultrafast',
+  '-crf 28',
+  '-pix_fmt yuv420p',
+  '-r 25',
+  '-t', String(Math.ceil(videoDuration)),
+])
         .output(tmpOut)
         .on('stderr', line => console.log('ffmpeg:', line))
         .on('end', () => { console.log('ffmpeg done'); resolve(); })
