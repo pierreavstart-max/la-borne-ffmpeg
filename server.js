@@ -15,9 +15,11 @@ app.get('/', (req, res) => {
 });
 
 app.post('/assemble', async (req, res) => {
-  const tmpBg = `/tmp/bg_${Date.now()}.png`;
-  const tmpVideoIn = `/tmp/vin_${Date.now()}.mp4`;
-  const tmpOut = `/tmp/out_${Date.now()}.mp4`;
+  const ts = Date.now();
+  const tmpBg = `/tmp/bg_${ts}.png`;
+  const tmpBgRot = `/tmp/bg_rot_${ts}.png`;
+  const tmpVideoIn = `/tmp/vin_${ts}.mp4`;
+  const tmpOut = `/tmp/out_${ts}.mp4`;
 
   try {
     const { bgBase64, videoURL, videoX, videoY, videoW, videoH, orientation, filename, ibApiKey } = req.body;
@@ -31,28 +33,29 @@ app.post('/assemble', async (req, res) => {
 
     // Décode le fond PNG
     const bgBuf = Buffer.from(bgBase64, 'base64');
+    writeFileSync(tmpBg, bgBuf);
 
-    // Pour portrait : pivote le fond 90° sens horaire
-    if (orientation === 'portrait') {
-      const { createCanvas, loadImage } = require('canvas');
-      const img = await loadImage(bgBuf);
-      const canvas = createCanvas(1920, 1080);
-      const ctx = canvas.getContext('2d');
-      ctx.translate(1920, 0);
-      ctx.rotate(Math.PI / 2);
-      ctx.drawImage(img, 0, 0, 1080, 1920);
-      writeFileSync(tmpBg, canvas.toBuffer('image/png'));
-    } else {
-      writeFileSync(tmpBg, bgBuf);
-    }
-
-    // Coordonnées finales
+    // Coordonnées finales selon orientation
+    let finalBg = tmpBg;
     let finalX = videoX;
     let finalY = videoY;
     let finalW = videoW;
     let finalH = videoH;
 
     if (orientation === 'portrait') {
+      // Pivote le fond 90° sens horaire avec ffmpeg
+      await new Promise((resolve, reject) => {
+        ffmpeg()
+          .input(tmpBg)
+          .videoFilters('transpose=1')
+          .output(tmpBgRot)
+          .on('end', resolve)
+          .on('error', (err) => { console.log('rotate error:', err.message); reject(err); })
+          .run();
+      });
+      finalBg = tmpBgRot;
+
+      // Transformation coordonnées portrait → paysage
       finalX = 1920 - videoY - videoH;
       finalY = videoX;
       finalW = videoH;
@@ -64,7 +67,7 @@ app.post('/assemble', async (req, res) => {
     // Assemble avec ffmpeg
     await new Promise((resolve, reject) => {
       ffmpeg()
-        .input(tmpBg)
+        .input(finalBg)
         .inputOptions(['-loop 1'])
         .input(tmpVideoIn)
         .complexFilter([
@@ -90,7 +93,6 @@ app.post('/assemble', async (req, res) => {
     const mp4Buffer = readFileSync(tmpOut);
     console.log('Output size:', mp4Buffer.length);
 
-    const { FormData, Blob } = require('buffer');
     const form = new FormData();
     const blob = new Blob([mp4Buffer], { type: 'video/mp4' });
     form.append('file', blob, filename);
@@ -106,7 +108,7 @@ app.post('/assemble', async (req, res) => {
     const data = await uploadRes.json();
     console.log('Upload response:', data);
 
-    cleanup(tmpBg, tmpVideoIn, tmpOut);
+    cleanup(tmpBg, tmpBgRot, tmpVideoIn, tmpOut);
 
     if (!uploadRes.ok) {
       return res.status(400).json({ error: data.error || 'Upload échoué' });
@@ -116,7 +118,7 @@ app.post('/assemble', async (req, res) => {
 
   } catch (error) {
     console.error('assemble error:', error);
-    cleanup(tmpBg, tmpVideoIn, tmpOut);
+    cleanup(tmpBg, tmpBgRot, tmpVideoIn, tmpOut);
     res.status(500).json({ error: error.message });
   }
 });
@@ -125,6 +127,9 @@ function downloadFile(url) {
   return new Promise((resolve, reject) => {
     const protocol = url.startsWith('https') ? https : http;
     protocol.get(url, (response) => {
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        return downloadFile(response.headers.location).then(resolve).catch(reject);
+      }
       const chunks = [];
       response.on('data', chunk => chunks.push(chunk));
       response.on('end', () => resolve(Buffer.concat(chunks)));
