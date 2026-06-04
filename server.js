@@ -43,7 +43,6 @@ app.post('/assemble', async (req, res) => {
     let finalH = videoH;
 
     if (orientation === 'portrait') {
-      // Pivote le fond 90° sens horaire avec ffmpeg
       await new Promise((resolve, reject) => {
         ffmpeg()
           .input(tmpBg)
@@ -55,7 +54,6 @@ app.post('/assemble', async (req, res) => {
       });
       finalBg = tmpBgRot;
 
-      // Transformation coordonnées portrait → paysage
       finalX = 1920 - videoY - videoH;
       finalY = videoX;
       finalW = videoH;
@@ -64,31 +62,43 @@ app.post('/assemble', async (req, res) => {
 
     console.log('Final coords:', { finalX, finalY, finalW, finalH });
 
-    // Assemble avec ffmpeg en 960x540 (moitié de 1920x1080)
-await new Promise((resolve, reject) => {
-  ffmpeg()
-    .input(finalBg)
-    .inputOptions(['-loop 1'])
-    .input(tmpVideoIn)
-    .complexFilter([
-      `[1:v]scale=${finalW}:${finalH}[scaled]`,
-      `[0:v][scaled]overlay=${finalX}:${finalY}[out]`,
-    ])
-    .outputOptions([
-      '-map [out]',
-      '-c:v libx264',
-      '-preset ultrafast',
-      '-crf 28',
-      '-pix_fmt yuv420p',
-      '-r 25',
-      '-shortest',
-    ])
-    .output(tmpOut)
-    .on('stderr', line => console.log('ffmpeg:', line))
-    .on('end', () => { console.log('ffmpeg done'); resolve(); })
-    .on('error', (err) => { console.log('ffmpeg error:', err.message); reject(err); })
-    .run();
-});
+    // Récupère la durée de la vidéo
+    let videoDuration = 35;
+    await new Promise((resolve) => {
+      ffmpeg.ffprobe(tmpVideoIn, (err, metadata) => {
+        if (!err && metadata?.format?.duration) {
+          videoDuration = metadata.format.duration;
+          console.log('Video duration:', videoDuration);
+        }
+        resolve();
+      });
+    });
+
+    // Assemble avec ffmpeg
+    await new Promise((resolve, reject) => {
+      ffmpeg()
+        .input(finalBg)
+        .inputOptions(['-loop 1'])
+        .input(tmpVideoIn)
+        .complexFilter([
+          `[1:v]scale=${finalW}:${finalH}[scaled]`,
+          `[0:v][scaled]overlay=${finalX}:${finalY}[out]`,
+        ])
+        .outputOptions([
+          '-map [out]',
+          '-c:v libx264',
+          '-preset ultrafast',
+          '-crf 28',
+          '-pix_fmt yuv420p',
+          '-r 25',
+          '-t', String(Math.ceil(videoDuration)),
+        ])
+        .output(tmpOut)
+        .on('stderr', line => console.log('ffmpeg:', line))
+        .on('end', () => { console.log('ffmpeg done'); resolve(); })
+        .on('error', (err) => { console.log('ffmpeg error:', err.message); reject(err); })
+        .run();
+    });
 
     // Upload sur info-beamer
     const mp4Buffer = readFileSync(tmpOut);
