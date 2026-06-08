@@ -132,9 +132,8 @@ async function processMeteoBorne(borne) {
         .input(tmpVideo)
         .input(tmpOverlay)
         .complexFilter([
-          `[1:v]fade=t=in:st=${fadeInStart}:d=${fadeInDur}:alpha=1,fade=t=out:st=${fadeOutStart}:d=${fadeInDur}:alpha=1[overlay_faded]`,
-          `[0:v][overlay_faded]overlay=0:0[out]`,
-        ])
+  `[0:v][1:v]overlay=0:0[out]`,
+])
         .outputOptions([
           '-map [out]',
           '-map 0:a?',
