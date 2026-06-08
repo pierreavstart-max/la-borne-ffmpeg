@@ -21,9 +21,13 @@ app.get('/', (req, res) => {
 });
 
 app.post('/run-meteo', async (req, res) => {
-  const { runMeteoJob } = require('./cron');
-  res.json({ message: 'Meteo job started' });
-  runMeteoJob();
+  try {
+    const { runMeteoJob } = require('./cron');
+    await runMeteoJob();
+    res.json({ message: 'Meteo job completed' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/assemble', async (req, res) => {
