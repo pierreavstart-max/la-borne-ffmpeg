@@ -11,11 +11,23 @@ ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 // Init Firebase Admin
 if (!admin.apps.length) {
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+  console.log('Firebase init - projectId:', projectId);
+  console.log('Firebase init - clientEmail:', clientEmail);
+  console.log('Firebase init - privateKey exists:', !!privateKey);
+
+  if (!projectId || !clientEmail || !privateKey) {
+    throw new Error(`Missing Firebase credentials: projectId=${projectId}, clientEmail=${clientEmail}, privateKey=${!!privateKey}`);
+  }
+
   admin.initializeApp({
     credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      projectId,
+      clientEmail,
+      privateKey,
     }),
   });
 }
