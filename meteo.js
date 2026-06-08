@@ -1,35 +1,25 @@
 const { createCanvas } = require('canvas');
 const https = require('https');
 
-const WMO_ICONS = {
-  0: 'SOLEIL', 1: 'SOLEIL', 2: 'NUAGEUX', 3: 'COUVERT',
-  45: 'BROUIL', 48: 'BROUIL',
-  51: 'PLUIE', 53: 'PLUIE', 55: 'PLUIE',
-  61: 'PLUIE', 63: 'PLUIE', 65: 'PLUIE',
-  71: 'NEIGE', 73: 'NEIGE', 75: 'NEIGE',
-  80: 'AVERSE', 81: 'AVERSE', 82: 'ORAGE',
-  95: 'ORAGE', 96: 'ORAGE', 99: 'ORAGE',
-};
-
 const WMO_LABELS = {
-  0: 'Ensoleillé', 1: 'Peu nuageux', 2: 'Partiellement nuageux', 3: 'Couvert',
+  0: 'Ensoleille', 1: 'Peu nuageux', 2: 'Partiellement nuageux', 3: 'Couvert',
   45: 'Brouillard', 48: 'Brouillard givrant',
-  51: 'Bruine légère', 53: 'Bruine', 55: 'Bruine forte',
-  61: 'Pluie légère', 63: 'Pluie', 65: 'Pluie forte',
-  71: 'Neige légère', 73: 'Neige', 75: 'Neige forte',
-  80: 'Averses légères', 81: 'Averses', 82: 'Averses fortes',
-  95: 'Orage', 96: 'Orage avec grêle', 99: 'Orage fort',
+  51: 'Bruine legere', 53: 'Bruine', 55: 'Bruine forte',
+  61: 'Pluie legere', 63: 'Pluie', 65: 'Pluie forte',
+  71: 'Neige legere', 73: 'Neige', 75: 'Neige forte',
+  80: 'Averses legeres', 81: 'Averses', 82: 'Averses fortes',
+  95: 'Orage', 96: 'Orage avec grele', 99: 'Orage fort',
 };
 
 const WMO_SYMBOLS = {
-  'SOLEIL': { symbol: '★', color: '#FFD700' },
-  'NUAGEUX': { symbol: '◆', color: '#B0BEC5' },
-  'COUVERT': { symbol: '■', color: '#90A4AE' },
-  'BROUIL': { symbol: '≈', color: '#B0BEC5' },
-  'PLUIE': { symbol: '▼', color: '#64B5F6' },
-  'NEIGE': { symbol: '❋', color: '#E3F2FD' },
-  'AVERSE': { symbol: '▼', color: '#42A5F5' },
-  'ORAGE': { symbol: '✦', color: '#FFF176' },
+  0: { s: '★', c: '#FFD700' }, 1: { s: '★', c: '#FFD700' },
+  2: { s: '◆', c: '#B0BEC5' }, 3: { s: '■', c: '#90A4AE' },
+  45: { s: '~', c: '#B0BEC5' }, 48: { s: '~', c: '#B0BEC5' },
+  51: { s: '▼', c: '#64B5F6' }, 53: { s: '▼', c: '#64B5F6' }, 55: { s: '▼', c: '#64B5F6' },
+  61: { s: '▼', c: '#42A5F5' }, 63: { s: '▼', c: '#42A5F5' }, 65: { s: '▼', c: '#1565C0' },
+  71: { s: '*', c: '#E3F2FD' }, 73: { s: '*', c: '#E3F2FD' }, 75: { s: '*', c: '#E3F2FD' },
+  80: { s: '▼', c: '#42A5F5' }, 81: { s: '▼', c: '#1E88E5' }, 82: { s: '✦', c: '#FFF176' },
+  95: { s: '✦', c: '#FFF176' }, 96: { s: '✦', c: '#FFF176' }, 99: { s: '✦', c: '#FFF176' },
 };
 
 async function fetchMeteo(lat, lon) {
@@ -71,106 +61,120 @@ async function generateMeteoOverlay(cityName, lat, lon) {
   const meteo = await fetchMeteo(lat, lon);
   const { daily } = meteo;
 
-  // Canvas 1920x1080 paysage
-  // L'overlay sera dans la partie BASSE du canvas (qui devient gauche après rotation -90° de l'écran)
-  // On dessine l'overlay en HORIZONTAL en bas du canvas
-  // Après rotation 90° CW de la vidéo pour affichage portrait, le bas devient la gauche visible
+  // Canvas 1920x1080 paysage — fond transparent
+  const canvas = createCanvas(1920, 1080);
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 1920, 1080);
 
- const canvas = createCanvas(1920, 1080);
-const ctx = canvas.getContext('2d');
+  // L'écran est physiquement tourné -90° (antihoraire)
+  // Pour que l'overlay soit lisible sur l'écran portrait :
+  // - On dessine l'overlay en mode portrait (vertical)
+  // - On le tourne de 90° horaire dans le canvas paysage
+  // - On le place à GAUCHE du canvas paysage
+  //   (gauche paysage = bas de l'écran portrait = en bas quand on regarde l'écran)
 
-// Force le fond transparent
-const imageData = ctx.getImageData(0, 0, 1920, 1080);
-ctx.putImageData(imageData, 0, 0);
-ctx.clearRect(0, 0, 1920, 1080);
+  // Zone overlay : 380px de large, 1040px de haut, placée à gauche
+  const OW = 380;  // largeur de la zone overlay
+  const OH = 1040; // hauteur de la zone overlay
+  const OX = 20;   // position X (gauche)
+  const OY = 20;   // position Y (haut)
 
-  // Zone overlay en bas du canvas — 1920px de large, 320px de haut
-  // Positionnée en bas car l'écran physique est tourné -90° antihoraire
-  // donc le bas du canvas = gauche de l'écran = bas de l'écran physique portrait
-  const overlayH = 320;
-  const overlayY = 1080 - overlayH - 20;
-  const overlayX = 20;
-  const overlayW = 1880;
+  // On dessine dans un canvas temporaire portrait (OH x OW)
+  // puis on le rotate 90° CW et on le colle dans le canvas principal
+  const tmpCanvas = createCanvas(OH, OW);
+  const tmpCtx = tmpCanvas.getContext('2d');
+  tmpCtx.clearRect(0, 0, OH, OW);
 
-  // Fond semi-transparent
-  ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
-  roundRect(ctx, overlayX, overlayY, overlayW, overlayH, 20);
-  ctx.fill();
+  // Fond semi-transparent dans le canvas temporaire
+  tmpCtx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+  roundRect(tmpCtx, 10, 10, OH - 20, OW - 20, 20);
+  tmpCtx.fill();
 
-  // Nom de la ville centré en haut de l'overlay
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 42px DejaVu Sans';
-  ctx.textAlign = 'center';
-  ctx.fillText(cityName.toUpperCase(), 1920 / 2, overlayY + 55);
+  // Nom de la ville
+  tmpCtx.fillStyle = '#ffffff';
+  tmpCtx.font = 'bold 36px DejaVu Sans';
+  tmpCtx.textAlign = 'center';
+  tmpCtx.fillText(cityName.toUpperCase(), OH / 2, 58);
 
   // Ligne séparatrice
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(overlayX + 40, overlayY + 70);
-  ctx.lineTo(overlayX + overlayW - 40, overlayY + 70);
-  ctx.stroke();
+  tmpCtx.strokeStyle = 'rgba(255,255,255,0.3)';
+  tmpCtx.lineWidth = 1;
+  tmpCtx.beginPath();
+  tmpCtx.moveTo(40, 72);
+  tmpCtx.lineTo(OH - 40, 72);
+  tmpCtx.stroke();
 
-  // 3 jours côte à côte
-  const dayW = overlayW / 3;
+  // 3 jours côte à côte dans le canvas temporaire
+  const dayW = (OH - 20) / 3;
 
   for (let i = 0; i < 3; i++) {
     const code = daily.weathercode[i];
     const tMax = Math.round(daily.temperature_2m_max[i]);
     const tMin = Math.round(daily.temperature_2m_min[i]);
     const label = WMO_LABELS[code] || '';
-    const iconKey = WMO_ICONS[code] || 'SOLEIL';
-    const iconData = WMO_SYMBOLS[iconKey];
+    const sym = WMO_SYMBOLS[code] || { s: '?', c: '#fff' };
     const dateLabel = formatDate(daily.time[i], i);
 
-    const dayX = overlayX + i * dayW;
+    const dayX = 10 + i * dayW;
     const centerX = dayX + dayW / 2;
 
-    // Séparateur vertical entre jours
+    // Séparateur vertical
     if (i > 0) {
-      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(dayX, overlayY + 80);
-      ctx.lineTo(dayX, overlayY + overlayH - 20);
-      ctx.stroke();
+      tmpCtx.strokeStyle = 'rgba(255,255,255,0.2)';
+      tmpCtx.lineWidth = 1;
+      tmpCtx.beginPath();
+      tmpCtx.moveTo(dayX, 80);
+      tmpCtx.lineTo(dayX, OW - 20);
+      tmpCtx.stroke();
     }
 
     // Jour
-    ctx.fillStyle = i === 0 ? '#FFD700' : 'rgba(255,255,255,0.85)';
-    ctx.font = i === 0 ? 'bold 32px DejaVu Sans' : '28px DejaVu Sans';
-    ctx.textAlign = 'center';
-    ctx.fillText(dateLabel, centerX, overlayY + 108);
+    tmpCtx.fillStyle = i === 0 ? '#FFD700' : 'rgba(255,255,255,0.85)';
+    tmpCtx.font = i === 0 ? 'bold 28px DejaVu Sans' : '24px DejaVu Sans';
+    tmpCtx.textAlign = 'center';
+    tmpCtx.fillText(dateLabel, centerX, 108);
 
     // Symbole météo
-    ctx.fillStyle = iconData.color;
-    ctx.font = 'bold 56px DejaVu Sans';
-    ctx.fillText(iconData.symbol, centerX, overlayY + 178);
+    tmpCtx.fillStyle = sym.c;
+    tmpCtx.font = 'bold 48px DejaVu Sans';
+    tmpCtx.fillText(sym.s, centerX, 172);
 
     // Description
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.font = '24px DejaVu Sans';
-    ctx.fillText(label, centerX, overlayY + 214);
+    tmpCtx.fillStyle = 'rgba(255,255,255,0.75)';
+    tmpCtx.font = '20px DejaVu Sans';
+    tmpCtx.fillText(label, centerX, 206);
 
     // Températures
-    ctx.font = 'bold 36px DejaVu Sans';
-    ctx.fillStyle = '#FF6B6B';
-    ctx.textAlign = 'right';
-    ctx.fillText(`${tMax}°`, centerX + 30, overlayY + 268);
+    tmpCtx.font = 'bold 30px DejaVu Sans';
+    tmpCtx.fillStyle = '#FF6B6B';
+    tmpCtx.textAlign = 'right';
+    tmpCtx.fillText(`${tMax}`, centerX + 20, 256);
 
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.font = '28px DejaVu Sans';
-    ctx.textAlign = 'center';
-    ctx.fillText('/', centerX + 45, overlayY + 268);
+    tmpCtx.fillStyle = 'rgba(255,255,255,0.5)';
+    tmpCtx.font = '22px DejaVu Sans';
+    tmpCtx.textAlign = 'center';
+    tmpCtx.fillText('/', centerX + 30, 256);
 
-    ctx.fillStyle = '#74B9FF';
-    ctx.font = 'bold 30px DejaVu Sans';
-    ctx.textAlign = 'left';
-    ctx.fillText(`${tMin}°`, centerX + 60, overlayY + 268);
+    tmpCtx.fillStyle = '#74B9FF';
+    tmpCtx.font = 'bold 26px DejaVu Sans';
+    tmpCtx.textAlign = 'left';
+    tmpCtx.fillText(`${tMin}`, centerX + 40, 256);
+
+    tmpCtx.fillStyle = 'rgba(255,255,255,0.4)';
+    tmpCtx.font = '18px DejaVu Sans';
+    tmpCtx.textAlign = 'center';
+    tmpCtx.fillText('°C', centerX + 70, 256);
   }
 
-  // Force PNG avec canal alpha
-return canvas.toBuffer('image/png', { compressionLevel: 6, filters: canvas.PNG_FILTER_NONE });
+  // Applique la rotation 90° CW dans le canvas principal
+  // Rotation 90° CW : (x,y) -> (canvasH - y, x) 
+  ctx.save();
+  ctx.translate(OX + OW, OY);
+  ctx.rotate(Math.PI / 2);
+  ctx.drawImage(tmpCanvas, 0, 0);
+  ctx.restore();
+
+  return canvas.toBuffer('image/png', { compressionLevel: 6 });
 }
 
 module.exports = { generateMeteoOverlay };
