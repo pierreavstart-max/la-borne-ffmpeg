@@ -24,11 +24,7 @@ if (!admin.apps.length) {
   }
 
   admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId,
-      clientEmail,
-      privateKey,
-    }),
+    credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
   });
 }
 
@@ -95,7 +91,7 @@ async function processMeteoBorne(borne) {
       geo.lon
     );
     writeFileSync(tmpOverlay, overlayBuf);
-    console.log(`Overlay generated for ${borne.nom}`);
+    console.log(`Overlay generated for ${borne.nom}, size: ${overlayBuf.length} bytes`);
 
     // Télécharge la vidéo de fond depuis Firebase Storage
     const videoBuf = await downloadFile(borne.ibMeteoStorageUrl);
@@ -109,6 +105,9 @@ async function processMeteoBorne(borne) {
         if (!err && metadata?.format?.duration) {
           videoDuration = metadata.format.duration;
           console.log(`Video duration: ${videoDuration}s`);
+        } else {
+          console.log('ffprobe error:', err?.message);
+          console.log('Using default duration:', videoDuration);
         }
         resolve();
       });
@@ -120,7 +119,7 @@ async function processMeteoBorne(borne) {
     const fadeInDur = 4 / fps;
     const fadeOutStart = videoDuration - (9 / fps) - (4 / fps);
 
-    console.log(`Fade in: ${fadeInStart}s, fade out: ${fadeOutStart}s`);
+    console.log(`Fade in: ${fadeInStart}s, fade out: ${fadeOutStart}s, total: ${videoDuration}s`);
 
     // Assemble avec ffmpeg
     await new Promise((resolve, reject) => {
