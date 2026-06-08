@@ -8,6 +8,9 @@ const http = require('http');
 const admin = require('firebase-admin');
 
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+const ffprobeInstaller = require('@ffprobe-installer/ffprobe');
+ffmpeg.setFfprobePath(ffprobeInstaller.path);
+console.log('ffprobe path:', ffprobeInstaller.path);
 
 // Init Firebase Admin
 if (!admin.apps.length) {
