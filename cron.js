@@ -132,7 +132,8 @@ async function processMeteoBorne(borne) {
         .input(tmpVideo)
         .input(tmpOverlay)
         .complexFilter([
-  `[0:v][1:v]overlay=0:0[out]`,
+  `[1:v]fade=t=in:st=${fadeInStart}:d=${fadeInDur}:alpha=1,fade=t=out:st=${fadeOutStart}:d=${fadeInDur}:alpha=1[overlay_faded]`,
+  `[0:v][overlay_faded]overlay=0:0[out]`,
 ])
         .outputOptions([
           '-map [out]',
@@ -153,18 +154,6 @@ async function processMeteoBorne(borne) {
         .on('error', (err) => { console.log(`ffmpeg error:`, err.message); reject(err); })
         .run();
     });
-    
-    // DEBUG : upload overlay sur info-beamer pour vérification
-const debugForm = new FormData();
-const debugBlob = new Blob([overlayBuf], { type: 'image/png' });
-debugForm.append('file', debugBlob, 'debug-overlay.png');
-const debugRes = await fetch('https://info-beamer.com/api/v1/asset/upload', {
-  method: 'POST',
-  headers: { 'Authorization': 'Basic ' + Buffer.from('api:' + IB_API_KEY).toString('base64') },
-  body: debugForm,
-});
-const debugData = await debugRes.json();
-console.log('Debug overlay uploaded:', debugData.asset_id, debugData.info?.thumb);
 
     // Upload sur info-beamer
     const mp4Buffer = readFileSync(tmpOut);
