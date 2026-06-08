@@ -11,30 +11,6 @@ const WMO_LABELS = {
   95: 'Orage', 96: 'Orage avec grele', 99: 'Orage fort',
 };
 
-const WMO_ICONS = {
-  0: 'clear-day',
-  1: 'mostly-clear-day',
-  2: 'partly-cloudy-day',
-  3: 'overcast',
-  45: 'fog',
-  48: 'fog',
-  51: 'drizzle',
-  53: 'drizzle',
-  55: 'drizzle',
-  61: 'rain',
-  63: 'rain',
-  65: 'extreme-rain',
-  71: 'snow',
-  73: 'snow',
-  75: 'extreme-snow',
-  80: 'partly-cloudy-day-rain',
-  81: 'rain',
-  82: 'extreme-rain',
-  95: 'thunderstorms',
-  96: 'thunderstorms-rain',
-  99: 'thunderstorms-extreme-rain',
-};
-
 async function fetchMeteo(lat, lon) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=Europe%2FParis&forecast_days=3`;
   return new Promise((resolve, reject) => {
@@ -47,13 +23,23 @@ async function fetchMeteo(lat, lon) {
   });
 }
 
+const WMO_OWM = {
+  0: '01d', 1: '01d', 2: '02d', 3: '04d',
+  45: '50d', 48: '50d',
+  51: '09d', 53: '09d', 55: '09d',
+  61: '10d', 63: '10d', 65: '10d',
+  71: '13d', 73: '13d', 75: '13d',
+  80: '09d', 81: '09d', 82: '11d',
+  95: '11d', 96: '11d', 99: '11d',
+};
+
 async function loadWeatherIcon(code) {
-  const iconName = WMO_ICONS[code] || 'clear-day';
-  const url = `https://cdn.jsdelivr.net/gh/basmilius/weather-icons/production/fill/all/${iconName}.png`;
+  const owmCode = WMO_OWM[code] || '01d';
+  const url = `https://openweathermap.org/img/wn/${owmCode}@2x.png`;
   try {
     return await loadImage(url);
   } catch (err) {
-    console.log(`Icon load error for ${iconName}:`, err.message);
+    console.log(`Icon load error for ${owmCode}:`, err.message);
     return null;
   }
 }
