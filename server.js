@@ -14,6 +14,12 @@ app.get('/', (req, res) => {
   res.json({ status: 'ok', service: 'la-borne-ffmpeg' });
 });
 
+app.post('/run-meteo', async (req, res) => {
+  const { runMeteoJob } = require('./cron');
+  res.json({ message: 'Meteo job started' });
+  runMeteoJob();
+});
+
 app.post('/assemble', async (req, res) => {
   const ts = Date.now();
   const tmpBg = `/tmp/bg_${ts}.png`;
@@ -161,6 +167,14 @@ function cleanup(...files) {
 }
 
 const PORT = process.env.PORT || 3001;
+
+app.post('/run-meteo', async (req, res) => {
+  res.json({ message: 'Meteo job started' });
+  const { runMeteoJob } = require('./cron');
+  runMeteoJob();
+});
+// Démarre le cron météo
+require('./cron');
 app.listen(PORT, () => {
   console.log(`la-borne-ffmpeg running on port ${PORT}`);
 });
