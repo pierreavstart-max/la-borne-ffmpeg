@@ -76,7 +76,7 @@ async function generateMeteoOverlay(cityName, lat, lon) {
   // Zone overlay : 380px de large, 1040px de haut, placée à gauche
   const OW = 380;  // largeur de la zone overlay
   const OH = 1040; // hauteur de la zone overlay
-  const OX = 20;   // position X (gauche)
+  const OX = 400;   // position X (gauche)
   const OY = 20;   // position Y (haut)
 
   // On dessine dans un canvas temporaire portrait (OH x OW)
