@@ -159,26 +159,34 @@ async function generateMeteoOverlay(cityName, lat, lon) {
     tmpCtx.textAlign = 'center';
     tmpCtx.fillText(label, centerX, 216);
 
-    // Températures
-    tmpCtx.font = 'bold 30px DejaVu Sans';
-    tmpCtx.fillStyle = '#FF6B6B';
-    tmpCtx.textAlign = 'right';
-    tmpCtx.fillText(`${tMax}`, centerX + 20, 266);
+    // Températures — tout sur une ligne centrée
+const tempStr = `${tMax}° / ${tMin}°C`;
+tmpCtx.font = 'bold 26px DejaVu Sans';
+tmpCtx.textAlign = 'center';
 
-    tmpCtx.fillStyle = 'rgba(255,255,255,0.5)';
-    tmpCtx.font = '22px DejaVu Sans';
-    tmpCtx.textAlign = 'center';
-    tmpCtx.fillText('/', centerX + 30, 266);
+// Mesure la largeur pour colorier chaque partie
+const fullWidth = tmpCtx.measureText(tempStr).width;
+const maxStr = `${tMax}°`;
+const sepStr = ` / `;
+const minStr = `${tMin}°C`;
 
-    tmpCtx.fillStyle = '#74B9FF';
-    tmpCtx.font = 'bold 26px DejaVu Sans';
-    tmpCtx.textAlign = 'left';
-    tmpCtx.fillText(`${tMin}`, centerX + 40, 266);
+const maxW = tmpCtx.measureText(maxStr).width;
+const sepW = tmpCtx.measureText(sepStr).width;
+const minW = tmpCtx.measureText(minStr).width;
+const totalW = maxW + sepW + minW;
+let startX = centerX - totalW / 2;
 
-    tmpCtx.fillStyle = 'rgba(255,255,255,0.4)';
-    tmpCtx.font = '18px DejaVu Sans';
-    tmpCtx.textAlign = 'center';
-    tmpCtx.fillText('°C', centerX + 70, 266);
+tmpCtx.fillStyle = '#FF6B6B';
+tmpCtx.textAlign = 'left';
+tmpCtx.fillText(maxStr, startX, 266);
+startX += maxW;
+
+tmpCtx.fillStyle = 'rgba(255,255,255,0.5)';
+tmpCtx.fillText(sepStr, startX, 266);
+startX += sepW;
+
+tmpCtx.fillStyle = '#74B9FF';
+tmpCtx.fillText(minStr, startX, 266);
   }
 
   // Rotation 90° CW
