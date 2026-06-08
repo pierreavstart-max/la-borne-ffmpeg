@@ -76,11 +76,13 @@ async function generateMeteoOverlay(cityName, lat, lon) {
   // On dessine l'overlay en HORIZONTAL en bas du canvas
   // Après rotation 90° CW de la vidéo pour affichage portrait, le bas devient la gauche visible
 
-  const canvas = createCanvas(1920, 1080);
-  const ctx = canvas.getContext('2d');
+ const canvas = createCanvas(1920, 1080);
+const ctx = canvas.getContext('2d');
 
-  // Fond transparent
-  ctx.clearRect(0, 0, 1920, 1080);
+// Force le fond transparent
+const imageData = ctx.getImageData(0, 0, 1920, 1080);
+ctx.putImageData(imageData, 0, 0);
+ctx.clearRect(0, 0, 1920, 1080);
 
   // Zone overlay en bas du canvas — 1920px de large, 320px de haut
   // Positionnée en bas car l'écran physique est tourné -90° antihoraire
@@ -167,7 +169,8 @@ async function generateMeteoOverlay(cityName, lat, lon) {
     ctx.fillText(`${tMin}°`, centerX + 60, overlayY + 268);
   }
 
-  return canvas.toBuffer('image/png');
+  // Force PNG avec canal alpha
+return canvas.toBuffer('image/png', { compressionLevel: 6, filters: canvas.PNG_FILTER_NONE });
 }
 
 module.exports = { generateMeteoOverlay };
