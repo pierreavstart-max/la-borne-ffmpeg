@@ -93,7 +93,7 @@ ctx.clearRect(0, 0, 1920, 1080);
   const overlayW = 1880;
 
   // Fond semi-transparent
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+  ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
   roundRect(ctx, overlayX, overlayY, overlayW, overlayH, 20);
   ctx.fill();
 
