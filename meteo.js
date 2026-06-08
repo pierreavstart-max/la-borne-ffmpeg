@@ -51,10 +51,11 @@ async function generateMeteoOverlay(cityName, lat, lon, orientation) {
   // L'overlay sera dans la partie gauche (400px de large)
   // car l'écran est tourné -90° donc gauche = bas de l'écran
   const canvas = createCanvas(1920, 1080);
-  const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d');
 
-  // Fond transparent
-  ctx.clearRect(0, 0, 1920, 1080);
+// Fond complètement transparent
+ctx.clearRect(0, 0, 1920, 1080);
+ctx.globalCompositeOperation = 'source-over';
 
   // Zone overlay — partie gauche 380px x 1080px
   const overlayX = 20;

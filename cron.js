@@ -12,6 +12,8 @@ const ffprobeInstaller = require('@ffprobe-installer/ffprobe');
 ffmpeg.setFfprobePath(ffprobeInstaller.path);
 console.log('ffprobe path:', ffprobeInstaller.path);
 
+
+
 // Init Firebase Admin
 if (!admin.apps.length) {
   const projectId = process.env.FIREBASE_PROJECT_ID;
@@ -152,6 +154,18 @@ async function processMeteoBorne(borne) {
         .on('error', (err) => { console.log(`ffmpeg error:`, err.message); reject(err); })
         .run();
     });
+    
+    // DEBUG : upload overlay sur info-beamer pour vérification
+const debugForm = new FormData();
+const debugBlob = new Blob([overlayBuf], { type: 'image/png' });
+debugForm.append('file', debugBlob, 'debug-overlay.png');
+const debugRes = await fetch('https://info-beamer.com/api/v1/asset/upload', {
+  method: 'POST',
+  headers: { 'Authorization': 'Basic ' + Buffer.from('api:' + IB_API_KEY).toString('base64') },
+  body: debugForm,
+});
+const debugData = await debugRes.json();
+console.log('Debug overlay uploaded:', debugData.asset_id, debugData.info?.thumb);
 
     // Upload sur info-beamer
     const mp4Buffer = readFileSync(tmpOut);
