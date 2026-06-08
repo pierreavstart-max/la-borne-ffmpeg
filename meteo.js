@@ -1,4 +1,4 @@
-const { createCanvas } = require('canvas');
+const { createCanvas, loadImage } = require('canvas');
 const https = require('https');
 
 const WMO_LABELS = {
@@ -11,15 +11,28 @@ const WMO_LABELS = {
   95: 'Orage', 96: 'Orage avec grele', 99: 'Orage fort',
 };
 
-const WMO_SYMBOLS = {
-  0: { s: '★', c: '#FFD700' }, 1: { s: '★', c: '#FFD700' },
-  2: { s: '◆', c: '#B0BEC5' }, 3: { s: '■', c: '#90A4AE' },
-  45: { s: '~', c: '#B0BEC5' }, 48: { s: '~', c: '#B0BEC5' },
-  51: { s: '▼', c: '#64B5F6' }, 53: { s: '▼', c: '#64B5F6' }, 55: { s: '▼', c: '#64B5F6' },
-  61: { s: '▼', c: '#42A5F5' }, 63: { s: '▼', c: '#42A5F5' }, 65: { s: '▼', c: '#1565C0' },
-  71: { s: '*', c: '#E3F2FD' }, 73: { s: '*', c: '#E3F2FD' }, 75: { s: '*', c: '#E3F2FD' },
-  80: { s: '▼', c: '#42A5F5' }, 81: { s: '▼', c: '#1E88E5' }, 82: { s: '✦', c: '#FFF176' },
-  95: { s: '✦', c: '#FFF176' }, 96: { s: '✦', c: '#FFF176' }, 99: { s: '✦', c: '#FFF176' },
+const WMO_ICONS = {
+  0: 'clear-day',
+  1: 'mostly-clear-day',
+  2: 'partly-cloudy-day',
+  3: 'overcast',
+  45: 'fog',
+  48: 'fog',
+  51: 'drizzle',
+  53: 'drizzle',
+  55: 'drizzle',
+  61: 'rain',
+  63: 'rain',
+  65: 'extreme-rain',
+  71: 'snow',
+  73: 'snow',
+  75: 'extreme-snow',
+  80: 'partly-cloudy-day-rain',
+  81: 'rain',
+  82: 'extreme-rain',
+  95: 'thunderstorms',
+  96: 'thunderstorms-rain',
+  99: 'thunderstorms-extreme-rain',
 };
 
 async function fetchMeteo(lat, lon) {
@@ -32,6 +45,17 @@ async function fetchMeteo(lat, lon) {
       res.on('error', reject);
     }).on('error', reject);
   });
+}
+
+async function loadWeatherIcon(code) {
+  const iconName = WMO_ICONS[code] || 'clear-day';
+  const url = `https://cdn.jsdelivr.net/gh/basmilius/weather-icons/production/fill/all/${iconName}.png`;
+  try {
+    return await loadImage(url);
+  } catch (err) {
+    console.log(`Icon load error for ${iconName}:`, err.message);
+    return null;
+  }
 }
 
 function formatDate(dateStr, index) {
@@ -61,31 +85,27 @@ async function generateMeteoOverlay(cityName, lat, lon) {
   const meteo = await fetchMeteo(lat, lon);
   const { daily } = meteo;
 
-  // Canvas 1920x1080 paysage — fond transparent
+  // Précharge les icônes
+  const icons = await Promise.all([
+    loadWeatherIcon(daily.weathercode[0]),
+    loadWeatherIcon(daily.weathercode[1]),
+    loadWeatherIcon(daily.weathercode[2]),
+  ]);
+
   const canvas = createCanvas(1920, 1080);
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, 1920, 1080);
 
-  // L'écran est physiquement tourné -90° (antihoraire)
-  // Pour que l'overlay soit lisible sur l'écran portrait :
-  // - On dessine l'overlay en mode portrait (vertical)
-  // - On le tourne de 90° horaire dans le canvas paysage
-  // - On le place à GAUCHE du canvas paysage
-  //   (gauche paysage = bas de l'écran portrait = en bas quand on regarde l'écran)
+  const OW = 380;
+  const OH = 1040;
+  const OX = 400;
+  const OY = 20;
 
-  // Zone overlay : 380px de large, 1040px de haut, placée à gauche
-  const OW = 380;  // largeur de la zone overlay
-  const OH = 1040; // hauteur de la zone overlay
-  const OX = 400;   // position X (gauche)
-  const OY = 20;   // position Y (haut)
-
-  // On dessine dans un canvas temporaire portrait (OH x OW)
-  // puis on le rotate 90° CW et on le colle dans le canvas principal
   const tmpCanvas = createCanvas(OH, OW);
   const tmpCtx = tmpCanvas.getContext('2d');
   tmpCtx.clearRect(0, 0, OH, OW);
 
-  // Fond semi-transparent dans le canvas temporaire
+  // Fond semi-transparent
   tmpCtx.fillStyle = 'rgba(0, 0, 0, 0.65)';
   roundRect(tmpCtx, 10, 10, OH - 20, OW - 20, 20);
   tmpCtx.fill();
@@ -104,7 +124,6 @@ async function generateMeteoOverlay(cityName, lat, lon) {
   tmpCtx.lineTo(OH - 40, 72);
   tmpCtx.stroke();
 
-  // 3 jours côte à côte dans le canvas temporaire
   const dayW = (OH - 20) / 3;
 
   for (let i = 0; i < 3; i++) {
@@ -112,8 +131,8 @@ async function generateMeteoOverlay(cityName, lat, lon) {
     const tMax = Math.round(daily.temperature_2m_max[i]);
     const tMin = Math.round(daily.temperature_2m_min[i]);
     const label = WMO_LABELS[code] || '';
-    const sym = WMO_SYMBOLS[code] || { s: '?', c: '#fff' };
     const dateLabel = formatDate(daily.time[i], i);
+    const icon = icons[i];
 
     const dayX = 10 + i * dayW;
     const centerX = dayX + dayW / 2;
@@ -134,40 +153,49 @@ async function generateMeteoOverlay(cityName, lat, lon) {
     tmpCtx.textAlign = 'center';
     tmpCtx.fillText(dateLabel, centerX, 108);
 
-    // Symbole météo
-    tmpCtx.fillStyle = sym.c;
-    tmpCtx.font = 'bold 48px DejaVu Sans';
-    tmpCtx.fillText(sym.s, centerX, 172);
+    // Icône météo
+    const iconSize = 80;
+    const iconX = centerX - iconSize / 2;
+    const iconY = 118;
+    if (icon) {
+      tmpCtx.drawImage(icon, iconX, iconY, iconSize, iconSize);
+    } else {
+      // Fallback symbole
+      tmpCtx.fillStyle = '#FFD700';
+      tmpCtx.font = 'bold 48px DejaVu Sans';
+      tmpCtx.textAlign = 'center';
+      tmpCtx.fillText('?', centerX, 172);
+    }
 
     // Description
     tmpCtx.fillStyle = 'rgba(255,255,255,0.75)';
     tmpCtx.font = '20px DejaVu Sans';
-    tmpCtx.fillText(label, centerX, 206);
+    tmpCtx.textAlign = 'center';
+    tmpCtx.fillText(label, centerX, 216);
 
     // Températures
     tmpCtx.font = 'bold 30px DejaVu Sans';
     tmpCtx.fillStyle = '#FF6B6B';
     tmpCtx.textAlign = 'right';
-    tmpCtx.fillText(`${tMax}`, centerX + 20, 256);
+    tmpCtx.fillText(`${tMax}`, centerX + 20, 266);
 
     tmpCtx.fillStyle = 'rgba(255,255,255,0.5)';
     tmpCtx.font = '22px DejaVu Sans';
     tmpCtx.textAlign = 'center';
-    tmpCtx.fillText('/', centerX + 30, 256);
+    tmpCtx.fillText('/', centerX + 30, 266);
 
     tmpCtx.fillStyle = '#74B9FF';
     tmpCtx.font = 'bold 26px DejaVu Sans';
     tmpCtx.textAlign = 'left';
-    tmpCtx.fillText(`${tMin}`, centerX + 40, 256);
+    tmpCtx.fillText(`${tMin}`, centerX + 40, 266);
 
     tmpCtx.fillStyle = 'rgba(255,255,255,0.4)';
     tmpCtx.font = '18px DejaVu Sans';
     tmpCtx.textAlign = 'center';
-    tmpCtx.fillText('°C', centerX + 70, 256);
+    tmpCtx.fillText('°C', centerX + 70, 266);
   }
 
-  // Applique la rotation 90° CW dans le canvas principal
-  // Rotation 90° CW : (x,y) -> (canvasH - y, x) 
+  // Rotation 90° CW
   ctx.save();
   ctx.translate(OX + OW, OY);
   ctx.rotate(Math.PI / 2);
