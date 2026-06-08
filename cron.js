@@ -5,29 +5,23 @@ const ffmpeg = require('fluent-ffmpeg');
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
 const https = require('https');
 const http = require('http');
+const admin = require('firebase-admin');
 
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
-// Config depuis les variables d'environnement
-const IB_API_KEY = process.env.INFOBEAMER_API_KEY;
-const FIREBASE_URL = process.env.FIREBASE_PROJECT_URL; // URL Firestore REST API
-
-async function fetchJSON(url, options = {}) {
-  return new Promise((resolve, reject) => {
-    const protocol = url.startsWith('https') ? https : http;
-    const req = protocol.request(url, options, res => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try { resolve(JSON.parse(data)); }
-        catch (e) { resolve(data); }
-      });
-    });
-    req.on('error', reject);
-    if (options.body) req.write(options.body);
-    req.end();
+// Init Firebase Admin
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    }),
   });
 }
+
+const db = admin.firestore();
+const IB_API_KEY = process.env.INFOBEAMER_API_KEY;
 
 async function downloadFile(url) {
   return new Promise((resolve, reject) => {
@@ -45,37 +39,24 @@ async function downloadFile(url) {
 }
 
 async function getBornesMeteo() {
-  // Récupère les bornes depuis Firestore REST API
-  const url = `https://firestore.googleapis.com/v1/projects/${process.env.FIREBASE_PROJECT_ID}/databases/(default)/documents/bornes`;
-  const data = await fetchJSON(url);
-
-  if (!data.documents) return [];
-
-  return data.documents
-    .map(doc => {
-      const fields = doc.fields || {};
-      return {
-        id: doc.name.split('/').pop(),
-        nom: fields.nom?.stringValue,
-        client: fields.client?.stringValue,
-        ibDeviceId: fields.ibDeviceId?.integerValue || fields.ibDeviceId?.doubleValue,
-        ibMeteoFilename: fields.ibMeteoFilename?.stringValue,
-        ibMeteoStorageUrl: fields.ibMeteoStorageUrl?.stringValue,
-        isMeteoBorne: fields.isMeteoBorne?.booleanValue,
-        meteoVille: fields.meteoVille?.stringValue,
-      };
-    })
-    .filter(b => b.isMeteoBorne && b.ibMeteoFilename && b.ibMeteoStorageUrl);
+  const snap = await db.collection('bornes').where('isMeteoBorne', '==', true).get();
+  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    .filter(b => b.ibMeteoFilename && b.ibMeteoStorageUrl);
 }
 
 async function getDeviceGeo(deviceId) {
-  const url = `https://info-beamer.com/api/v1/device/${deviceId}`;
-  const data = await fetchJSON(url, {
-    headers: {
-      'Authorization': 'Basic ' + Buffer.from('api:' + IB_API_KEY).toString('base64'),
-    },
-  });
-  return data.geo || null;
+  try {
+    const res = await fetch(`https://info-beamer.com/api/v1/device/${deviceId}`, {
+      headers: {
+        'Authorization': 'Basic ' + Buffer.from('api:' + IB_API_KEY).toString('base64'),
+      },
+    });
+    const data = await res.json();
+    return data.geo || null;
+  } catch (err) {
+    console.error('getDeviceGeo error:', err.message);
+    return null;
+  }
 }
 
 async function processMeteoBorne(borne) {
@@ -93,6 +74,7 @@ async function processMeteoBorne(borne) {
       console.log(`No GPS for ${borne.nom}, skipping`);
       return;
     }
+    console.log(`GPS: ${geo.lat}, ${geo.lon}`);
 
     // Génère l'overlay météo
     const overlayBuf = await generateMeteoOverlay(
@@ -106,7 +88,7 @@ async function processMeteoBorne(borne) {
     // Télécharge la vidéo de fond depuis Firebase Storage
     const videoBuf = await downloadFile(borne.ibMeteoStorageUrl);
     writeFileSync(tmpVideo, videoBuf);
-    console.log(`Background video downloaded for ${borne.nom}, size: ${videoBuf.length}`);
+    console.log(`Background video downloaded, size: ${videoBuf.length}`);
 
     // Récupère la durée de la vidéo
     let videoDuration = 30;
@@ -121,12 +103,10 @@ async function processMeteoBorne(borne) {
     });
 
     // Calcule les timings pour le fondu
-    // FPS = 25, apparition après 5 frames = 0.2s, fondu 4 frames = 0.16s
     const fps = 25;
-    const fadeInStart = 5 / fps;   // 0.2s
-    const fadeInDur = 4 / fps;     // 0.16s
-    const fadeOutEnd = videoDuration - (9 / fps);  // 9 frames avant la fin
-    const fadeOutStart = fadeOutEnd - (4 / fps);   // commence 4 frames avant
+    const fadeInStart = 5 / fps;
+    const fadeInDur = 4 / fps;
+    const fadeOutStart = videoDuration - (9 / fps) - (4 / fps);
 
     console.log(`Fade in: ${fadeInStart}s, fade out: ${fadeOutStart}s`);
 
@@ -136,9 +116,7 @@ async function processMeteoBorne(borne) {
         .input(tmpVideo)
         .input(tmpOverlay)
         .complexFilter([
-          // Applique le fondu sur l'overlay
           `[1:v]fade=t=in:st=${fadeInStart}:d=${fadeInDur}:alpha=1,fade=t=out:st=${fadeOutStart}:d=${fadeInDur}:alpha=1[overlay_faded]`,
-          // Superpose l'overlay sur la vidéo
           `[0:v][overlay_faded]overlay=0:0[out]`,
         ])
         .outputOptions([
@@ -157,11 +135,11 @@ async function processMeteoBorne(borne) {
           if (line.includes('time=')) console.log('ffmpeg:', line);
         })
         .on('end', () => { console.log(`ffmpeg done for ${borne.nom}`); resolve(); })
-        .on('error', (err) => { console.log(`ffmpeg error for ${borne.nom}:`, err.message); reject(err); })
+        .on('error', (err) => { console.log(`ffmpeg error:`, err.message); reject(err); })
         .run();
     });
 
-    // Upload sur info-beamer avec le même nom de fichier
+    // Upload sur info-beamer
     const mp4Buffer = readFileSync(tmpOut);
     console.log(`Output size: ${mp4Buffer.length} bytes`);
 
@@ -178,7 +156,7 @@ async function processMeteoBorne(borne) {
     });
 
     const uploadData = await uploadRes.json();
-    console.log(`Upload result for ${borne.nom}:`, uploadData.ok ? 'OK' : uploadData.error);
+    console.log(`Upload result for ${borne.nom}:`, uploadData.ok ? `OK — asset ${uploadData.asset_id}` : uploadData.error);
 
   } catch (err) {
     console.error(`Error processing ${borne.nom}:`, err.message);
@@ -210,5 +188,4 @@ cron.schedule('0 6 * * *', runMeteoJob, {
 
 console.log('Cron météo scheduled — every day at 06:00 Paris time');
 
-// Export pour tests manuels
 module.exports = { runMeteoJob };
