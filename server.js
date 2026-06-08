@@ -10,6 +10,12 @@ ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 
+app.get('/test-url', async (req, res) => {
+  const url = req.query.url;
+  const buf = await downloadFile(url);
+  res.json({ size: buf.length, first100: buf.slice(0, 100).toString('hex') });
+});
+
 app.get('/', (req, res) => {
   res.json({ status: 'ok', service: 'la-borne-ffmpeg' });
 });
