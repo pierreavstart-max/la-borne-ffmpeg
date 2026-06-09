@@ -13,14 +13,11 @@ const WMO_LABELS = {
 
 async function fetchMeteo(lat, lon) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=Europe%2FParis&forecast_days=3`;
-  return new Promise((resolve, reject) => {
-    https.get(url, res => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => resolve(JSON.parse(data)));
-      res.on('error', reject);
-    }).on('error', reject);
-  });
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Open-Meteo error: ${res.status} ${await res.text()}`);
+  }
+  return await res.json();
 }
 
 const WMO_OWM = {
