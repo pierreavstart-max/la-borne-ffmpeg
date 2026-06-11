@@ -31,16 +31,6 @@ async function fetchMeteo(lat, lon) {
     }
   }
 }
-Et dans cron.js, change l'heure du cron à 6h30 :
-javascriptcron.schedule('30 6 * * *', runMeteoJob, {
-  timezone: 'Europe/Paris',
-});
-Déploie :
-bashcd ~/la-borne-ffmpeg
-git add .
-git commit -m "Retry Open-Meteo + cron 6h30"
-git push
-Dis-moi quand c'est déployé et teste manuellement pour vérifier que ça fonctionne.
 
 const WMO_OWM = {
   0: '01d', 1: '01d', 2: '02d', 3: '04d',
