@@ -197,7 +197,7 @@ async function runMeteoJob() {
 }
 
 // Cron job — tous les jours à 6h00 heure de Paris
-cron.schedule('0 6 * * *', runMeteoJob, {
+cron.schedule('30 5 * * *', runMeteoJob, {
   timezone: 'Europe/Paris',
 });
 

@@ -13,12 +13,34 @@ const WMO_LABELS = {
 
 async function fetchMeteo(lat, lon) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=Europe%2FParis&forecast_days=3`;
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`Open-Meteo error: ${res.status} ${await res.text()}`);
+  
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`Open-Meteo error: ${res.status}`);
+      }
+      return await res.json();
+    } catch (err) {
+      console.log(`fetchMeteo attempt ${attempt}/3 failed:`, err.message);
+      if (attempt < 3) {
+        await new Promise(r => setTimeout(r, 10000)); // attend 10 secondes
+      } else {
+        throw err;
+      }
+    }
   }
-  return await res.json();
 }
+Et dans cron.js, change l'heure du cron à 6h30 :
+javascriptcron.schedule('30 6 * * *', runMeteoJob, {
+  timezone: 'Europe/Paris',
+});
+Déploie :
+bashcd ~/la-borne-ffmpeg
+git add .
+git commit -m "Retry Open-Meteo + cron 6h30"
+git push
+Dis-moi quand c'est déployé et teste manuellement pour vérifier que ça fonctionne.
 
 const WMO_OWM = {
   0: '01d', 1: '01d', 2: '02d', 3: '04d',
