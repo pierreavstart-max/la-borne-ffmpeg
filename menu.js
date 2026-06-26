@@ -1,4 +1,3 @@
-
 const { createCanvas, loadImage } = require('canvas');
 const { exec } = require('child_process');
 const fs = require('fs');
@@ -19,10 +18,8 @@ async function downloadFile(url, destPath) {
 }
 
 async function pdfToImage(pdfPath, outputDir) {
-  // Utilise pdftoppm pour convertir la 1ère page du PDF en PNG haute résolution
   const outputBase = path.join(outputDir, 'menu-page');
   await execAsync(`pdftoppm -png -r 300 -f 1 -l 1 "${pdfPath}" "${outputBase}"`);
-  // pdftoppm génère menu-page-1.png
   const pngPath = `${outputBase}-1.png`;
   if (!fs.existsSync(pngPath)) throw new Error('PDF to PNG conversion failed');
   return pngPath;
@@ -63,32 +60,42 @@ async function processMenu() {
   const menuImgPath = await pdfToImage(pdfPath, tmpDir);
   console.log('PDF converted to PNG:', menuImgPath);
 
-  // 4. Charger background et menu, créer le composite
+  // 4. Charger background et menu
   const bgImage = await loadImage(bgPath);
   const menuImage = await loadImage(menuImgPath);
+  console.log('Background size:', bgImage.width, 'x', bgImage.height);
+  console.log('Menu original size:', menuImage.width, 'x', menuImage.height);
 
-  // Canvas aux dimensions du background
+  // 5. Créer un canvas temporaire avec le menu pivoté de 90° horaire (CW)
+  // Le menu A4 portrait devient paysage après rotation
+  const rotatedW = menuImage.height;
+  const rotatedH = menuImage.width;
+  const rotatedCanvas = createCanvas(rotatedW, rotatedH);
+  const rotatedCtx = rotatedCanvas.getContext('2d');
+  rotatedCtx.translate(rotatedW / 2, rotatedH / 2);
+  rotatedCtx.rotate(Math.PI / 2);  // 90° sens horaire
+  rotatedCtx.drawImage(menuImage, -menuImage.width / 2, -menuImage.height / 2);
+  console.log('Menu rotated 90° CW, new size:', rotatedW, 'x', rotatedH);
+
+  // 6. Créer le composite final
   const canvas = createCanvas(bgImage.width, bgImage.height);
   const ctx = canvas.getContext('2d');
 
   // Dessiner le background
   ctx.drawImage(bgImage, 0, 0, bgImage.width, bgImage.height);
 
-  // Dessiner le menu aux coordonnées définies
-  ctx.drawImage(menuImage, config.x, config.y, config.width, config.height);
+  // Incruster le menu rotaté dans la zone définie
+  ctx.drawImage(rotatedCanvas, config.x, config.y, config.width, config.height);
+  console.log('Composite created');
 
-  console.log('Composite created:', bgImage.width, 'x', bgImage.height);
-
-  // 5. Exporter en JPEG
-  const outputPath = path.join(tmpDir, config.ibFilename || 'MENU.jpg');
+  // 7. Exporter en JPEG
+  const filename = config.ibFilename || 'MENU.jpg';
+  const outputPath = path.join(tmpDir, filename);
   const jpegBuffer = canvas.toBuffer('image/jpeg', { quality: 0.92 });
   fs.writeFileSync(outputPath, jpegBuffer);
   console.log('Output size:', jpegBuffer.length, 'bytes');
 
-  // 6. Upload sur info-beamer (remplace l'asset existant par nom)
-  const filename = config.ibFilename || 'MENU.jpg';
-
-  // Chercher l'asset existant par nom pour le remplacer
+  // 8. Chercher l'asset existant par nom pour le remplacer
   const listRes = await fetch('https://info-beamer.com/api/v1/asset/list', {
     headers: { 'Authorization': 'Basic ' + Buffer.from('api:' + IB_API_KEY).toString('base64') },
   });
@@ -103,7 +110,7 @@ async function processMenu() {
     });
   }
 
-  // Upload du nouveau fichier
+  // 9. Upload du nouveau fichier
   const form = new FormData();
   const blob = new Blob([jpegBuffer], { type: 'image/jpeg' });
   form.append('file', blob, filename);
