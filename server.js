@@ -31,13 +31,16 @@ app.post('/run-meteo', async (req, res) => {
 });
 
 app.post('/process-menu', async (req, res) => {
+  // Réponse immédiate
+  res.json({ success: true, message: 'Menu job started, processing in background' });
+
+  // Traitement en arrière-plan
   try {
     const { processMenu } = require('./menu');
-    const result = await processMenu();
-    res.json(result);
+    await processMenu();
+    console.log('Menu job completed successfully');
   } catch (err) {
     console.error('process-menu error:', err);
-    res.status(500).json({ success: false, error: err.message });
   }
 });
 
