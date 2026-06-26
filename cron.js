@@ -204,3 +204,19 @@ cron.schedule('30 5 * * *', runMeteoJob, {
 console.log('Cron météo scheduled — every day at 06:00 Paris time');
 
 module.exports = { runMeteoJob };
+
+// Cron job menu — tous les lundis à 6h00 heure de Paris
+cron.schedule('0 6 * * 1', async () => {
+  console.log('=== AUTO MENU JOB STARTED ===', new Date().toISOString());
+  try {
+    const { processMenu } = require('./menu');
+    await processMenu();
+    console.log('=== AUTO MENU JOB DONE ===');
+  } catch (err) {
+    console.error('Auto menu job error:', err);
+  }
+}, {
+  timezone: 'Europe/Paris',
+});
+
+console.log('Cron menu scheduled — every Monday at 06:00 Paris time');

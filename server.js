@@ -30,6 +30,17 @@ app.post('/run-meteo', async (req, res) => {
   }
 });
 
+app.post('/process-menu', async (req, res) => {
+  try {
+    const { processMenu } = require('./menu');
+    const result = await processMenu();
+    res.json(result);
+  } catch (err) {
+    console.error('process-menu error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/assemble', async (req, res) => {
   const ts = Date.now();
   const tmpBg = `/tmp/bg_${ts}.png`;
@@ -42,16 +53,13 @@ app.post('/assemble', async (req, res) => {
 
     console.log('assemble called:', { videoURL, videoX, videoY, videoW, videoH, orientation, filename });
 
-    // Télécharge la vidéo depuis Firebase Storage
     const videoBuf = await downloadFile(videoURL);
     writeFileSync(tmpVideoIn, videoBuf);
     console.log('Video downloaded, size:', videoBuf.length);
 
-    // Décode le fond PNG
     const bgBuf = Buffer.from(bgBase64, 'base64');
     writeFileSync(tmpBg, bgBuf);
 
-    // Coordonnées finales selon orientation
     let finalBg = tmpBg;
     let finalX = videoX;
     let finalY = videoY;
@@ -59,31 +67,25 @@ app.post('/assemble', async (req, res) => {
     let finalH = videoH;
 
     if (orientation === 'portrait') {
-  await new Promise((resolve, reject) => {
-    ffmpeg()
-      .input(tmpBg)
-      .videoFilters('transpose=1')
-      .output(tmpBgRot)
-      .on('end', resolve)
-      .on('error', (err) => { console.log('rotate error:', err.message); reject(err); })
-      .run();
-  });
-  finalBg = tmpBgRot;
+      await new Promise((resolve, reject) => {
+        ffmpeg()
+          .input(tmpBg)
+          .videoFilters('transpose=1')
+          .output(tmpBgRot)
+          .on('end', resolve)
+          .on('error', (err) => { console.log('rotate error:', err.message); reject(err); })
+          .run();
+      });
+      finalBg = tmpBgRot;
 
-  // Rotation 90° sens horaire : canvas 1080x1920 -> 1920x1080
-  // newX = H - oldY - oldH = 1920 - videoY - videoH
-  // newY = oldX = videoX
-  // newW = oldH = videoH  
-  // newH = oldW = videoW
-  finalX = 1920 - videoY - videoH;
-  finalY = videoX;
-  finalW = videoH;
-  finalH = videoW;
-}
+      finalX = 1920 - videoY - videoH;
+      finalY = videoX;
+      finalW = videoH;
+      finalH = videoW;
+    }
 
     console.log('Final coords:', { finalX, finalY, finalW, finalH });
 
-    // Récupère la durée de la vidéo
     let videoDuration = 35;
     await new Promise((resolve) => {
       ffmpeg.ffprobe(tmpVideoIn, (err, metadata) => {
@@ -95,27 +97,26 @@ app.post('/assemble', async (req, res) => {
       });
     });
 
-    // Assemble avec ffmpeg
     await new Promise((resolve, reject) => {
       ffmpeg()
         .input(finalBg)
         .inputOptions(['-loop 1'])
         .input(tmpVideoIn)
         .complexFilter([
-  `[1:v]transpose=1,scale=${finalW}:${finalH}[scaled]`,
-  `[0:v][scaled]overlay=${finalX}:${finalY}[out]`,
-])
+          `[1:v]transpose=1,scale=${finalW}:${finalH}[scaled]`,
+          `[0:v][scaled]overlay=${finalX}:${finalY}[out]`,
+        ])
         .outputOptions([
-  '-map [out]',
-  '-map 1:a?',
-  '-c:v libx264',
-  '-c:a aac',
-  '-preset ultrafast',
-  '-crf 28',
-  '-pix_fmt yuv420p',
-  '-r 25',
-  '-t', String(Math.ceil(videoDuration)),
-])
+          '-map [out]',
+          '-map 1:a?',
+          '-c:v libx264',
+          '-c:a aac',
+          '-preset ultrafast',
+          '-crf 28',
+          '-pix_fmt yuv420p',
+          '-r 25',
+          '-t', String(Math.ceil(videoDuration)),
+        ])
         .output(tmpOut)
         .on('stderr', line => console.log('ffmpeg:', line))
         .on('end', () => { console.log('ffmpeg done'); resolve(); })
@@ -123,7 +124,6 @@ app.post('/assemble', async (req, res) => {
         .run();
     });
 
-    // Upload sur info-beamer
     const mp4Buffer = readFileSync(tmpOut);
     console.log('Output size:', mp4Buffer.length);
 
@@ -178,13 +178,9 @@ function cleanup(...files) {
 
 const PORT = process.env.PORT || 3001;
 
-app.post('/run-meteo', async (req, res) => {
-  res.json({ message: 'Meteo job started' });
-  const { runMeteoJob } = require('./cron');
-  runMeteoJob();
-});
-// Démarre le cron météo
+// Démarre le cron météo + menu
 require('./cron');
+
 app.listen(PORT, () => {
   console.log(`la-borne-ffmpeg running on port ${PORT}`);
 });
